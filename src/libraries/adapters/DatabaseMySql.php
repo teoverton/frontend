@@ -279,8 +279,9 @@ class DatabaseMySql implements DatabaseInterface
   {
     $photos = $this->db->all("SELECT `pht`.* 
       FROM `{$this->mySqlTablePrefix}photo` AS `pht` INNER JOIN `{$this->mySqlTablePrefix}elementAlbum` AS `alb` ON `pht`.`id`=`alb`.`element`
-      WHERE `pht`.`owner`=:owner AND `alb`.`owner`=:owner",
-      array(':owner' => $this->owner));
+      WHERE `pht`.`owner`=:owner AND `alb`.`owner`=:owner
+      AND `alb`.`album`=:album",
+      array(':owner' => $this->owner, ':album' => $id));
 
     if($photos === false)
       return false;
@@ -480,10 +481,11 @@ class DatabaseMySql implements DatabaseInterface
     // determine where to start
     // this should return the immediately adjacent photo prior to $photo
     // if there are none we set it to the current photo and only get a next
-    $startResp = $this->db->one("SELECT `dateSortByDay` FROM `{$this->mySqlTablePrefix}photo` {$buildQuery['where']} AND `dateSortByDay` < :dateSortByDay {$buildQuery['groupBy']} ORDER BY `dateSortByDay` DESC", 
+    $startResp = $this->db->all("SELECT `id`, `dateSortByDay` FROM `{$this->mySqlTablePrefix}photo` {$buildQuery['where']} AND `dateSortByDay` < :dateSortByDay {$buildQuery['groupBy']} ORDER BY `dateSortByDay` DESC, `id` DESC LIMIT 2", 
       array(':dateSortByDay' => $photo['dateSortByDay']));
-    if(!empty($startResp))
-      $startValue = $startResp['dateSortByDay'];
+    $ind = count($startResp)-1;
+    if($ind >= 0)
+      $startValue = $startResp[$ind]['dateSortByDay'];
     else
       $startValue = $photo['dateSortByDay'];
 
@@ -495,22 +497,33 @@ class DatabaseMySql implements DatabaseInterface
         {$buildQuery['from']}
         {$buildQuery['where']} AND `dateSortByDay` >= :startValue
         {$buildQuery['groupBy']}
-        ORDER BY `dateSortByDay` ASC
-        LIMIT 3", 
+        ORDER BY `dateSortByDay` ASC, `id` ASC
+        LIMIT 5", 
       array(':startValue' => $startValue)
     );
 
     $ret = array();
     if(!empty($photosNextPrev))
     {
-      if($photosNextPrev[0]['dateSortByDay'] < $photo['dateSortByDay'])
-        $ret['next'] = $this->normalizePhoto($photosNextPrev[0]);
+      if($photosNextPrev[0]['dateSortByDay'] <= $photo['dateSortByDay'] && $photosNextPrev[0]['id'] !== $photo['id'])
+      {
+        $ret['next'] = array();
+        if($photosNextPrev[1]['dateSortByDay'] <= $photo['dateSortByDay'] && $photosNextPrev[1]['id'] !== $photo['id'])
+          $ret['next'][] = $this->normalizePhoto($photosNextPrev[1]);
+
+        $ret['next'][] = $this->normalizePhoto($photosNextPrev[0]);
+      }
 
       $last = array_pop($photosNextPrev);
-      if($last && $last['dateSortByDay'] > $photo['dateSortByDay'])
-        $ret['previous'] = $this->normalizePhoto($last);
-    }
+      if($last && $last['dateSortByDay'] > $photo['dateSortByDay'] && $last['id'] !== $photo['id'])
+      {
+        $otherLast = array_pop($photosNextPrev);
+        if($otherLast && $last['dateSortByDay'] > $photo['dateSortByDay'] && $otherLast['id'] !== $photo['id'])
+          $ret['previous'][] = $this->normalizePhoto($otherLast);
 
+        $ret['previous'][] = $this->normalizePhoto($last);
+      }
+    }
     return $ret;
   }
 
@@ -590,7 +603,7 @@ class DatabaseMySql implements DatabaseInterface
     */
   public function getTag($tag)
   {
-    $tag = $this->db->one("SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `id`=:id AND `owner`=:owner", array(':id' => $tag, ':owner' => $this->owner));
+    $tag = $this->db->one("SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `owner`=:owner AND `id`=:id", array(':owner' => $this->owner, ':id' => $tag));
 
     if(!$tag )
       return false;
@@ -632,12 +645,12 @@ class DatabaseMySql implements DatabaseInterface
     if(isset($filters['search']) && $filters['search'] != '')
     {
       $filters['search'] = $this->_($filters['search']);
-      $query = "SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `id` IS NOT NULL AND `owner`=:owner AND `{$countField}` IS NOT NULL AND `{$countField}` > '0' AND `id` LIKE :search ORDER BY {$sortBy}";
+      $query = "SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `owner`=:owner AND `id` IS NOT NULL AND `{$countField}` IS NOT NULL AND `{$countField}` > '0' AND `id` LIKE :search ORDER BY {$sortBy}";
       $params[':search'] = "{$filters['search']}%";
     }
     else
     {
-      $query = "SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `id` IS NOT NULL AND `owner`=:owner AND `{$countField}` IS NOT NULL AND `{$countField}` > '0' ORDER BY {$sortBy}";
+      $query = "SELECT * FROM `{$this->mySqlTablePrefix}tag` WHERE `owner`=:owner AND `id` IS NOT NULL AND `{$countField}` IS NOT NULL AND `{$countField}` > '0' ORDER BY {$sortBy}";
     }
     $tags = $this->db->all($query, $params);
 

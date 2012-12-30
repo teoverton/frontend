@@ -334,7 +334,7 @@ class PhotoTest extends PHPUnit_Framework_TestCase
     $db = $this->getMock('db', array('getPhoto','postPhoto'));
     $db->expects($this->any())
       ->method('getPhoto')
-      ->will($this->returnValue(array('pathBase' => 'foo')));
+      ->will($this->returnValue(array('pathBase' => 'foo', 'dateTaken' => 1234)));
     $db->expects($this->any())
       ->method('postPhoto')
       ->will($this->returnValue(true));
@@ -356,7 +356,7 @@ class PhotoTest extends PHPUnit_Framework_TestCase
     $db = $this->getMock('db', array('getPhoto','postPhoto'));
     $db->expects($this->any())
       ->method('getPhoto')
-      ->will($this->returnValue(true));
+      ->will($this->returnValue(array('pathBase' => 'foo', 'dateTaken' => 1234)));
     $db->expects($this->any())
       ->method('postPhoto')
       ->will($this->returnValue(false));
@@ -378,7 +378,7 @@ class PhotoTest extends PHPUnit_Framework_TestCase
     $db = $this->getMock('db', array('getPhoto','postPhoto'));
     $db->expects($this->any())
       ->method('getPhoto')
-      ->will($this->returnValue(true));
+      ->will($this->returnValue(array('pathBase' => 'foo', 'dateTaken' => 1234)));
     $db->expects($this->any())
       ->method('postPhoto')
       ->will($this->returnValue(true));
@@ -427,11 +427,11 @@ class PhotoTest extends PHPUnit_Framework_TestCase
   {
     // This *should* work
     $now = time();
-    $ym = date('Ym');
-    $res = $this->photo->generatePaths('foobar');
-    $this->assertNotEquals("/original/{$ym}/{$now}-foobar", $res['pathOriginal'], 'original path not correct, if it is a timestamp mismatch - ignore');
-    $this->assertTrue(preg_match("#/original/{$ym}/[a-z0-9]{13}-foobar#", $res['pathOriginal']) == 1, 'original path not correct, if it is a timestamp mismatch - ignore');
-    $this->assertTrue(preg_match("#/base/{$ym}/[a-z0-9]{6}-foobar#", $res['pathBase']) == 1, 'base path not correct, if it is a timestamp mismatch - ignore');
+    $ym = date('Ym', strtotime('1/1/2000'));
+    $res = $this->photo->generatePaths('foobar.jpg', strtotime('1/1/2000'));
+    $this->assertNotEquals("/original/{$ym}/{$now}-foobar.jpg", $res['pathOriginal'], 'original path not correct, if it is a timestamp mismatch - ignore');
+    $this->assertTrue(preg_match("#/original/{$ym}/foobar-[a-z0-9]{13}\.jpg#", $res['pathOriginal']) == 1, 'original path not correct, if it is a timestamp mismatch - ignore');
+    $this->assertTrue(preg_match("#/base/{$ym}/foobar-[a-z0-9]{6}\.jpg#", $res['pathBase']) == 1, 'base path not correct, if it is a timestamp mismatch - ignore');
   }
 
   public function testGenerateUrlBase()
